@@ -212,7 +212,7 @@ func parseEditorCommand(editorCmd string) (string, []string, error) {
 	}
 
 	if state == "quotes" {
-		return "", []string{}, errors.New(fmt.Sprintf("Unclosed quote in command line: %s", editorCmd))
+		return "", []string{}, fmt.Errorf("Unclosed quote in command line: %s", editorCmd)
 	}
 
 	if current != "" {
@@ -237,7 +237,7 @@ func editFile(filePath string) error {
 		editorCmd, err = guessEditorCommand()
 		setupInfo := fmt.Sprintf("Run `%s --config editor \"name-of-editor\"` to set up the editor. eg. `%s --config editor \"vim\"`", APPNAME, APPNAME)
 		if err != nil {
-			criticalError(errors.New(fmt.Sprintf("No text editor defined in configuration, and could not guess a text editor.\n%s", setupInfo)))
+			criticalError(fmt.Errorf("No text editor defined in configuration, and could not guess a text editor.\n%s", setupInfo))
 		} else {
 			logInfo("No text editor defined in configuration. Using \"%s\" as default.\n%s", editorCmd, setupInfo)
 		}
@@ -352,17 +352,17 @@ func printHelp(subMenu string) {
 Examples:
 
   Process all the files in the current directory:
-  % APPNAME	
-  
+  % APPNAME
+
   Process all the JPEGs in the specified directory:
   % APPNAME /path/to/photos/*.jpg
-  
+
   Undo the changes done by the previous operation:
   % APPNAME --undo /path/to/photos/*.jpg
 
   Set VIM as the default text editor:
   % APPNAME --config editor vim
-  
+
   List config values:
   % APPNAME --config
 `
@@ -372,13 +372,13 @@ Config commands:
 
   Set a value:
   % APPNAME --config <name> <value>
-  
+
   List all the values:
   % APPNAME --config
-  
+
   Delete a value:
   % APPNAME --config <name>
-  
+
 Possible key/values:
 
   editor:              The editor to use when editing the list of files.
@@ -389,15 +389,15 @@ Possible key/values:
 
   include_directories: Whether to include the directories in the file buffer.
                        Possible values: 0 or 1. Default: 1.
-                       
+
   include_header:      Whether to show the header in the file buffer. Possible
                        values: 0 or 1. Default: 1.
-  
+
 Examples:
 
   Set Sublime as the default text editor:
   % APPNAME --config editor "subl -n -w"
-  
+
   Don't move files to trash:
   % APPNAME --config use_trash 0
 `
@@ -493,14 +493,14 @@ func fileActions(originalFilePaths []string, changedContent string) ([]*FileActi
 			// insensitive file system).
 			fileInfo2, err := os.Stat(action.FullOldPath())
 			if err != nil {
-				return []*FileAction{}, errors.New(fmt.Sprintf("cannot stat \"%s\"", action.FullOldPath()))
+				return []*FileAction{}, fmt.Errorf("cannot stat \"%s\"", action.FullOldPath())
 			}
 			if os.SameFile(fileInfo1, fileInfo2) {
 				ok = true
 			}
 
 			if !ok {
-				return []*FileAction{}, errors.New(fmt.Sprintf("\"%s\" cannot be renamed to \"%s\": destination already exists", action.FullOldPath(), action.FullNewPath()))
+				return []*FileAction{}, fmt.Errorf("\"%s\" cannot be renamed to \"%s\": destination already exists", action.FullOldPath(), action.FullNewPath())
 			}
 		}
 	}
@@ -513,7 +513,7 @@ func fileActions(originalFilePaths []string, changedContent string) ([]*FileActi
 			continue
 		}
 		if _, ok := duplicateMap[action.FullNewPath()]; ok {
-			return []*FileAction{}, errors.New(fmt.Sprintf("two files are being renamed to the same name: \"%s\"", action.FullNewPath()))
+			return []*FileAction{}, fmt.Errorf("two files are being renamed to the same name: \"%s\"", action.FullNewPath())
 		} else {
 			duplicateMap[action.FullNewPath()] = true
 		}

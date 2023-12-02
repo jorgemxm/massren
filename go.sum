@@ -1,3 +1,5 @@
+github.com/facette/natsort v0.0.0-20181210072756-2cd4dd1e2dcb h1:IT4JYU7k4ikYg1SCxNI1/Tieq/NFvh6dzLdgi7eu0tM=
+github.com/facette/natsort v0.0.0-20181210072756-2cd4dd1e2dcb/go.mod h1:bH6Xx7IW64qjjJq8M2u4dxNaBiDfKK+z/3eGDpXEQhc=
 github.com/jessevdk/go-flags v0.0.0-20151018211510-4047bd797dd9 h1:PSPYIsaVMJhLmEu95g3hW2qzg17OLzsxVYpis1OfjWc=
 github.com/jessevdk/go-flags v0.0.0-20151018211510-4047bd797dd9/go.mod h1:4FA24M0QyGHXBuZZK/XkWh8h0e1EYbRYJSGM75WSRxI=
 github.com/kr/text v0.0.0-20130911015532-6807e777504f h1:JaNmHIV9Eby6srQVWuiQ6n8ko2o/lG6udSRCbFZe1fs=

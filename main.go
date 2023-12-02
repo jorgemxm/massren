@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/facette/natsort"
 	"github.com/jessevdk/go-flags"
 	"github.com/kr/text"
 	"github.com/laurent22/go-trash"
@@ -298,7 +299,7 @@ func filePathsFromArgs(args []string, includeDirectories bool) ([]string, error)
 		output = temp
 	}
 
-	sort.Strings(output)
+	natsort.Sort(output)
 
 	return output, nil
 }

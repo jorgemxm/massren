@@ -1,4 +1,5 @@
-// +build windows plan9 solaris
+//go:build plan9 || appengine || wasm || aix
+// +build plan9 appengine wasm aix
 
 package flags
 

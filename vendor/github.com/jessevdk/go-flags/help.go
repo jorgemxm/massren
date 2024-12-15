@@ -76,10 +76,13 @@ func (p *Parser) getAlignmentInfo() alignmentInfo {
 			for _, arg := range c.args {
 				ret.updateLen(arg.Name, c != p.Command)
 			}
+			prevcmd = c
 		}
-
+		if !grp.showInHelp() {
+			return
+		}
 		for _, info := range grp.options {
-			if !info.canCli() {
+			if !info.showInHelp() {
 				continue
 			}
 
@@ -106,6 +109,10 @@ func (p *Parser) getAlignmentInfo() alignmentInfo {
 
 func wrapText(s string, l int, prefix string) string {
 	var ret string
+
+	if l < 10 {
+		l = 10
+	}
 
 	// Basic text wrapping of s at spaces to fit in l
 	lines := strings.Split(s, "\n")
@@ -212,19 +219,21 @@ func (p *Parser) writeHelpOption(writer *bufio.Writer, option *Option, info alig
 
 		var def string
 
-		if len(option.DefaultMask) != 0 && option.DefaultMask != "-" {
-			def = option.DefaultMask
+		if len(option.DefaultMask) != 0 {
+			if option.DefaultMask != "-" {
+				def = option.DefaultMask
+			}
 		} else {
 			def = option.defaultLiteral
 		}
 
 		var envDef string
-		if option.EnvDefaultKey != "" {
+		if option.EnvKeyWithNamespace() != "" {
 			var envPrintable string
 			if runtime.GOOS == "windows" {
-				envPrintable = "%" + option.EnvDefaultKey + "%"
+				envPrintable = "%" + option.EnvKeyWithNamespace() + "%"
 			} else {
-				envPrintable = "$" + option.EnvDefaultKey
+				envPrintable = "$" + option.EnvKeyWithNamespace()
 			}
 			envDef = fmt.Sprintf(" [%s]", envPrintable)
 		}
@@ -299,7 +308,7 @@ func (p *Parser) WriteHelp(writer io.Writer) {
 				}
 			} else if us, ok := allcmd.data.(Usage); ok {
 				usage = us.Usage()
-			} else if allcmd.hasCliOptions() {
+			} else if allcmd.hasHelpOptions() {
 				usage = fmt.Sprintf("[%s-OPTIONS]", allcmd.Name)
 			}
 
@@ -325,7 +334,11 @@ func (p *Parser) WriteHelp(writer io.Writer) {
 				}
 
 				if !allcmd.ArgsRequired {
-					fmt.Fprintf(wr, "[%s]", name)
+					if arg.Required > 0 {
+						fmt.Fprintf(wr, "%s", name)
+					} else {
+						fmt.Fprintf(wr, "[%s]", name)
+					}
 				} else {
 					fmt.Fprintf(wr, "%s", name)
 				}
@@ -387,7 +400,7 @@ func (p *Parser) WriteHelp(writer io.Writer) {
 			}
 
 			for _, info := range grp.options {
-				if !info.canCli() || info.Hidden {
+				if !info.showInHelp() {
 					continue
 				}
 
@@ -412,22 +425,41 @@ func (p *Parser) WriteHelp(writer io.Writer) {
 			}
 		})
 
-		if len(c.args) > 0 {
+		var args []*Arg
+		for _, arg := range c.args {
+			if arg.Description != "" {
+				args = append(args, arg)
+			}
+		}
+
+		if len(args) > 0 {
 			if c == p.Command {
 				fmt.Fprintf(wr, "\nArguments:\n")
 			} else {
 				fmt.Fprintf(wr, "\n[%s command arguments]\n", c.Name)
 			}
 
-			maxlen := aligninfo.descriptionStart()
+			descStart := aligninfo.descriptionStart() + paddingBeforeOption
 
-			for _, arg := range c.args {
-				prefix := strings.Repeat(" ", paddingBeforeOption)
-				fmt.Fprintf(wr, "%s%s", prefix, arg.Name)
+			for _, arg := range args {
+				argPrefix := strings.Repeat(" ", paddingBeforeOption)
+				argPrefix += arg.Name
 
 				if len(arg.Description) > 0 {
-					align := strings.Repeat(" ", maxlen-len(arg.Name)-1)
-					fmt.Fprintf(wr, ":%s%s", align, arg.Description)
+					argPrefix += ":"
+					wr.WriteString(argPrefix)
+
+					// Space between "arg:" and the description start
+					descPadding := strings.Repeat(" ", descStart-len(argPrefix))
+					// How much space the description gets before wrapping
+					descWidth := aligninfo.terminalColumns - 1 - descStart
+					// Whitespace to which we can indent new description lines
+					descPrefix := strings.Repeat(" ", descStart)
+
+					wr.WriteString(descPadding)
+					wr.WriteString(wrapText(arg.Description, descWidth, descPrefix))
+				} else {
+					wr.WriteString(argPrefix)
 				}
 
 				fmt.Fprintln(wr)
@@ -463,4 +495,24 @@ func (p *Parser) WriteHelp(writer io.Writer) {
 	}
 
 	wr.Flush()
+}
+
+// WroteHelp is a helper to test the error from ParseArgs() to
+// determine if the help message was written. It is safe to
+// call without first checking that error is nil.
+func WroteHelp(err error) bool {
+	if err == nil { // No error
+		return false
+	}
+
+	flagError, ok := err.(*Error)
+	if !ok { // Not a go-flag error
+		return false
+	}
+
+	if flagError.Type != ErrHelp { // Did not print the help message
+		return false
+	}
+
+	return true
 }

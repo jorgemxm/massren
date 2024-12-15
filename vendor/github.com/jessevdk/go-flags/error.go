@@ -55,6 +55,9 @@ const (
 	// ErrInvalidChoice indicates an invalid option value which only allows
 	// a certain number of choices.
 	ErrInvalidChoice
+
+	// ErrInvalidTag indicates an invalid tag or invalid use of an existing tag
+	ErrInvalidTag
 )
 
 func (e ErrorType) String() string {
@@ -87,9 +90,15 @@ func (e ErrorType) String() string {
 		return "unknown command"
 	case ErrInvalidChoice:
 		return "invalid choice"
+	case ErrInvalidTag:
+		return "invalid tag"
 	}
 
 	return "unrecognized error type"
+}
+
+func (e ErrorType) Error() string {
+	return e.String()
 }
 
 // Error represents a parser error. The error returned from Parse is of this

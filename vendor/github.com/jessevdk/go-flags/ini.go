@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-// IniError contains location information on where an error occured.
+// IniError contains location information on where an error occurred.
 type IniError struct {
 	// The error message.
 	Message string
@@ -58,6 +58,8 @@ const (
 // IniParser is a utility to read and write flags options from and to ini
 // formatted strings.
 type IniParser struct {
+	ParseAsDefaults bool // override default flags
+
 	parser *Parser
 }
 
@@ -96,8 +98,6 @@ func IniParse(filename string, data interface{}) error {
 // information on the ini file format. The returned errors can be of the type
 // flags.Error or flags.IniError.
 func (i *IniParser) ParseFile(filename string) error {
-	i.parser.clearIsSet()
-
 	ini, err := readIniFromFile(filename)
 
 	if err != nil {
@@ -113,18 +113,18 @@ func (i *IniParser) ParseFile(filename string) error {
 //
 // The format of the ini file is as follows:
 //
-//     [Option group name]
-//     option = value
+//	[Option group name]
+//	option = value
 //
 // Each section in the ini file represents an option group or command in the
 // flags parser. The default flags parser option group (i.e. when using
 // flags.Parse) is named 'Application Options'. The ini option name is matched
 // in the following order:
 //
-//     1. Compared to the ini-name tag on the option struct field (if present)
-//     2. Compared to the struct field name
-//     3. Compared to the option long name (if present)
-//     4. Compared to the option short name (if present)
+//  1. Compared to the ini-name tag on the option struct field (if present)
+//  2. Compared to the struct field name
+//  3. Compared to the option long name (if present)
+//  4. Compared to the option short name (if present)
 //
 // Sections for nested groups and commands can be addressed using a dot `.'
 // namespacing notation (i.e [subcommand.Options]). Group section names are
@@ -132,8 +132,6 @@ func (i *IniParser) ParseFile(filename string) error {
 //
 // The returned errors can be of the type flags.Error or flags.IniError.
 func (i *IniParser) Parse(reader io.Reader) error {
-	i.parser.clearIsSet()
-
 	ini, err := readIni(reader, "")
 
 	if err != nil {
@@ -143,7 +141,7 @@ func (i *IniParser) Parse(reader io.Reader) error {
 	return i.parse(ini)
 }
 
-// WriteFile writes the flags as ini format into a file. See WriteIni
+// WriteFile writes the flags as ini format into a file. See Write
 // for more information. The returned error occurs when the specified file
 // could not be opened for writing.
 func (i *IniParser) WriteFile(filename string, options IniOptions) error {
@@ -327,19 +325,19 @@ func writeCommandIni(command *Command, namespace string, writer io.Writer, optio
 	})
 
 	for _, c := range command.commands {
-		var nns string
+		var fqn string
 
 		if c.Hidden {
 			continue
 		}
 
 		if len(namespace) != 0 {
-			nns = c.Name + "." + nns
+			fqn = namespace + "." + c.Name
 		} else {
-			nns = c.Name
+			fqn = c.Name
 		}
 
-		writeCommandIni(c, nns, writer, options)
+		writeCommandIni(c, fqn, writer, options)
 	}
 }
 
@@ -501,13 +499,21 @@ func (i *IniParser) matchingGroups(name string) []*Group {
 func (i *IniParser) parse(ini *ini) error {
 	p := i.parser
 
+	p.eachOption(func(cmd *Command, group *Group, option *Option) {
+		option.clearReferenceBeforeSet = true
+	})
+
 	var quotesLookup = make(map[*Option]bool)
 
 	for name, section := range ini.Sections {
 		groups := i.matchingGroups(name)
 
 		if len(groups) == 0 {
-			return newErrorf(ErrUnknownGroup, "could not find option group `%s'", name)
+			if (p.Options & IgnoreUnknown) == None {
+				return newErrorf(ErrUnknownGroup, "could not find option group `%s'", name)
+			}
+
+			continue
 		}
 
 		for _, inival := range section {
@@ -536,6 +542,11 @@ func (i *IniParser) parse(ini *ini) error {
 					}
 				}
 
+				continue
+			}
+
+			// ini value is ignored if parsed as default but defaults are prevented
+			if i.ParseAsDefaults && opt.preventDefault {
 				continue
 			}
 
@@ -568,13 +579,24 @@ func (i *IniParser) parse(ini *ini) error {
 				}
 			}
 
-			if err := opt.set(pval); err != nil {
+			var err error
+
+			if i.ParseAsDefaults {
+				err = opt.setDefault(pval)
+			} else {
+				err = opt.Set(pval)
+			}
+
+			if err != nil {
 				return &IniError{
 					Message:    err.Error(),
 					File:       ini.File,
 					LineNumber: inival.LineNumber,
 				}
 			}
+
+			// Defaults from ini files take precendence over defaults from parser
+			opt.preventDefault = true
 
 			// either all INI values are quoted or only values who need quoting
 			if _, ok := quotesLookup[opt]; !inival.Quoted || !ok {
